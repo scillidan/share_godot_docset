@@ -189,7 +189,7 @@ jobs:
           Godot-${{ env.stable_version }}-docset.tgz
           Godot-3.6-docset.tgz
         tag_name: ${{ steps.upstream_run.outputs.run_date }}
-        name: Release ${{ steps.upstream_run.outputs.run_date }}
+        name: ${{ steps.upstream_run.outputs.run_date }}
         body: |
           [${{ env.upstream_owner }}/${{ env.upstream_repo }}@${{ steps.upstream_run.outputs.run_id }}](${{ steps.upstream_run.outputs.run_html_url }})
         draft: false
