@@ -1,9 +1,8 @@
 name: Create Releases (Downstream)
 on:
-  workflow_dispatch:
-  # Optional schedule:
   schedule:
     - cron: '0 1 * * 1'
+  workflow_dispatch:
 
 env:
   stable_version: '4.6'
