@@ -71,19 +71,19 @@ jobs:
         echo "owner=${{ env.upstream_owner }}"
         echo "repo=${{ env.upstream_repo }}"
         echo "GITHUB_TOKEN is set: ${GITHUB_TOKEN:+yes}"
-        
+
         artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/$owner/$repo/actions/runs/$run_id/artifacts")
         echo "List artifacts response:"
         echo "$artifacts_json" | jq .
-        
+
         artifact_ids=$(echo "$artifacts_json" | jq -r '.artifacts[] | select(.name | test("^godot-docs-html-")) | .id')
         echo "Found artifact IDs: $artifact_ids"
-        
+
         if [[ -z "$artifact_ids" ]]; then
           echo "No matching artifacts found"
           exit 1
         fi
-    
+
     - name: Download godot-docs-html-*.zip artifacts from upstream run
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,64 +92,58 @@ jobs:
         run_id=${{ steps.upstream_run.outputs.run_id }}
         owner=${{ env.upstream_owner }}
         repo=${{ env.upstream_repo }}
-        
+
         echo "Listing artifacts for upstream run $run_id"
         artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/$owner/$repo/actions/runs/$run_id/artifacts")
-        
+
         artifact_ids=$(echo "$artifacts_json" | jq -r '.artifacts[] | select(.name | test("^godot-docs-html-")) | .id')
-        
+
         echo "Found artifact IDs: $artifact_ids"
         if [[ -z "$artifact_ids" ]]; then
           echo "No matching artifacts found"
           exit 1
         fi
-        
+
         mkdir -p artifacts
         cd artifacts
-        
+
         # Get artifact info JSON
         artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
           "https://api.github.com/repos/$owner/$repo/actions/runs/$run_id/artifacts")
-        
+
         # Extract name and id pairs for matching artifacts
         mapfile -t artifact_lines < <(echo "$artifacts_json" | jq -c '.artifacts[] | select(.name | test("^godot-docs-html-")) | {id: .id, name: .name}')
-        
+
         for artifact_json in "${artifact_lines[@]}"; do
           artifact_id=$(echo "$artifact_json" | jq -r '.id')
           artifact_name=$(echo "$artifact_json" | jq -r '.name')
-        
+
           echo "Downloading artifact $artifact_name with ID $artifact_id"
           curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
                -o artifact.zip \
                "https://api.github.com/repos/$owner/$repo/actions/artifacts/$artifact_id/zip"
-          
+
           # Extract into folder named exactly as artifact_name
           mkdir -p "$artifact_name"
           unzip -q artifact.zip -d "$artifact_name"
           rm artifact.zip
-        
+
           echo "Listing contents of $artifact_name:"
           ls -lR "$artifact_name"
         done
-        
+
         cd ..
-        
+
         for folder in artifacts/godot-docs-html-*; do
           base_folder=$(basename "$folder")
           echo "Copying $folder to workspace root as $base_folder"
           cp -r "$folder" "$base_folder"
         done
 
-    - name: Rename stable folder to version folder
-      run: |
-        if [ -d "godot-docs-html-stable" ]; then
-          mv godot-docs-html-stable godot-docs-html-${{ env.stable_version }}
-          echo "Renamed godot-docs-html-stable to godot-docs-html-${{ env.stable_version }}"
-        else
-          echo "Folder godot-docs-html-stable not found, skipping rename"
-        fi
+    - name: Rename folder
+      run: mv godot-docs-html-stable godot-docs-html-${{ env.stable_version }}
 
-    - name: Prepare docsets with doc2dash and icons
+    - name: Run doc2dash
       run: |
         for branch in master ${{ env.stable_version }} 3.6; do
           name_branch=$(echo "$branch" | tr '.' '_')
@@ -165,7 +159,7 @@ jobs:
           mv godot-$name_branch.docset godot-$branch.docset
         done
 
-    - name: Replace content in Info.plist files
+    - name: Update info.plist
       run: |
         for branch in master ${{ env.stable_version }} 3.6; do
           name_branch=$(echo "$branch" | tr '.' '_')
@@ -177,17 +171,12 @@ jobs:
           ' "$plist_path"
         done
 
-    - name: Create tgz archive of docsets
+    - name: Create tgz
       run: |
         for branch in master ${{ env.stable_version }} 3.6; do
           docset_folder="godot-$branch.docset"
           tgz_name="Godot-docset-$branch.tgz"
-          if [ -d "$docset_folder" ]; then
-            tar --exclude='.DS_Store' -czf "$tgz_name" "$docset_folder"
-            echo "Created $tgz_name"
-          else
-            echo "Docset folder $docset_folder not found, skipping tar"
-          fi
+          tar --exclude='.DS_Store' -czf "$tgz_name" "$docset_folder"
         done
 
     - name: Create or update release and upload .tgz assets with body
@@ -233,6 +222,10 @@ jobs:
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
+        if git diff --quiet && git diff --cached --quiet; then
+          echo "No changes to commit. This is normal when version hasn't changed."
+          exit 0
+        fi
         git add Godot.xml Godot3.xml
         git commit -m "Update Godot.xml and Godot3.xml files for release ${{ steps.upstream_run.outputs.run_date }}"
         git push
@@ -246,22 +239,22 @@ jobs:
         echo "Updating release $tag body with upstream run link"
         repo_owner=scillidan
         repo_name=share_godot-docs
-        
+
         release_id=$(curl -s \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github+json" \
           "https://api.github.com/repos/$repo_owner/$repo_name/releases/tags/$tag" \
           | jq -r '.id')
-    
+
         if [ "$release_id" = "null" ] || [ -z "$release_id" ]; then
           echo "Release not found for tag $tag"
           exit 1
         fi
-    
+
         curl -s -X PATCH \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github+json" \
           "https://api.github.com/repos/$repo_owner/$repo_name/releases/$release_id" \
           -d "{\"body\":\"$body\"}"
-    
+
         echo "Release description updated"
