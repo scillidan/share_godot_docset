@@ -175,7 +175,7 @@ jobs:
       run: |
         for branch in master ${{ env.stable_version }} 3.6; do
           docset_folder="godot-$branch.docset"
-          tgz_name="Godot-docset-$branch.tgz"
+          tgz_name="Godot-$branch-docset.tgz"
           tar --exclude='.DS_Store' -czf "$tgz_name" "$docset_folder"
         done
 
@@ -185,9 +185,9 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          Godot-docset-master.tgz
-          Godot-docset-${{ env.stable_version }}.tgz
-          Godot-docset-3.6.tgz
+          Godot-master-docset.tgz
+          Godot-${{ env.stable_version }}-docset.tgz
+          Godot-3.6-docset.tgz
         tag_name: ${{ steps.upstream_run.outputs.run_date }}
         name: Release ${{ steps.upstream_run.outputs.run_date }}
         body: |
@@ -201,7 +201,7 @@ jobs:
         echo "<entry>" > Godot.xml
         echo "  <name>Godot</name>" >> Godot.xml
         echo "  <version>${{ env.stable_version }}</version>" >> Godot.xml
-        echo "  <url>https://github.com/scillidan/share_godot-docs/releases/download/${{ steps.upstream_run.outputs.run_date }}/Godot-docset-${{ env.stable_version }}.tgz</url>" >> Godot.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/${{ steps.upstream_run.outputs.run_date }}/Godot-${{ env.stable_version }}-docset.tgz</url>" >> Godot.xml
         echo "  <other-versions>" >> Godot.xml
         echo "    <version>" >> Godot.xml
         echo "      <name>3.6</name>" >> Godot.xml
@@ -213,7 +213,7 @@ jobs:
         echo "<entry>" > Godot3.xml
         echo "  <name>Godot</name>" >> Godot3.xml
         echo "  <version>3.6</version>" >> Godot3.xml
-        echo "  <url>https://github.com/scillidan/share_godot-docs/releases/download/${{ steps.upstream_run.outputs.run_date }}/Godot-docset-3.6.tgz</url>" >> Godot3.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/${{ steps.upstream_run.outputs.run_date }}/Godot-3.6-docset.tgz</url>" >> Godot3.xml
         echo "</entry>" >> Godot3.xml
 
     - name: Upload XML files
@@ -238,7 +238,7 @@ jobs:
         body="[${{ env.upstream_owner }}/${{ env.upstream_repo }}@${{ steps.upstream_run.outputs.run_id }}](${{ steps.upstream_run.outputs.run_html_url }})"
         echo "Updating release $tag body with upstream run link"
         repo_owner=scillidan
-        repo_name=share_godot-docs
+        repo_name=share_godot_docset
 
         release_id=$(curl -s \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
