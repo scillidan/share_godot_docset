@@ -9,3 +9,7 @@ This repo is for generating docset files from HTML artifacts that build by [offi
 - Zeal → Tools → Docsets → Add feed
 	- Godot 4: `https://raw.githubusercontent.com/scillidan/share_godot_docset/refs/heads/main/Godot.xml`
 	- Godot 3: `https://raw.githubusercontent.com/scillidan/share_godot_docset/refs/heads/main/Godot3.xml`
+
+## Other versions
+
+- Godot 4.5: `https://raw.githubusercontent.com/scillidan/share_godot_docset/refs/heads/main/versions/Godot4.5.xml`
