@@ -178,6 +178,23 @@ jobs:
           tar --exclude='.DS_Store' -czf "$tgz_name" "$docset_folder"
         done
 
+    - name: Delete existing release if tag exists
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        tag="${{ steps.upstream_run.outputs.run_date }}"
+        repo="${{ github.repository }}"
+        release_id=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+          "https://api.github.com/repos/$repo/releases/tags/$tag" | jq -r '.id // empty')
+        if [ -n "$release_id" ]; then
+          echo "Deleting existing release ID $release_id (tag: $tag)"
+          curl -s -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$repo/releases/$release_id"
+          echo "Deleted successfully."
+        else
+          echo "No existing release found for tag $tag, nothing to delete."
+        fi
+
     - name: Create or update release and upload .tgz assets with body
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
