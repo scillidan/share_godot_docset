@@ -2,9 +2,4 @@
   <name>Godot</name>
   <version>4.5</version>
   <url>https://github.com/scillidan/share_godot_docset/releases/download/20260126/Godot-docset-4.5.tgz</url>
-  <other-versions>
-    <version>
-      <name>3.6</name>
-    </version>
-  </other-versions>
 </entry>
