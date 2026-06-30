@@ -1,4 +1,5 @@
-name: Create Releases (Downstream)
+name: Release
+
 on:
   schedule:
     - cron: '0 1 * * 1'
@@ -10,7 +11,7 @@ env:
   upstream_repo: 'godot-docs'
 
 jobs:
-  build-and-release:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -18,7 +19,9 @@ jobs:
 
     steps:
     - name: Checkout self repo
-      uses: actions/checkout@v6
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v6
+      with:
+        persist-credentials: false
 
     - name: Install dependencies
       run: |
@@ -43,13 +46,12 @@ jobs:
       id: upstream_run
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        WF_ID: ${{ steps.workflow_id.outputs.workflow_id }}
+        OWNER: ${{ env.upstream_owner }}
+        REPO: ${{ env.upstream_repo }}
       run: |
-        # Use workflow_id from previous step
-        workflow_id=${{ steps.workflow_id.outputs.workflow_id }}
-        owner=${{ env.upstream_owner }}
-        repo=${{ env.upstream_repo }}
-        echo "Fetching latest successful workflow runs for workflow ID $workflow_id..."
-        runs_json=$(curl -s "https://api.github.com/repos/$owner/$repo/actions/workflows/$workflow_id/runs?status=success&per_page=1")
+        echo "Fetching latest successful workflow runs for workflow ID $WF_ID..."
+        runs_json=$(curl -s "https://api.github.com/repos/$OWNER/$REPO/actions/workflows/$WF_ID/runs?status=success&per_page=1")
         run_id=$(echo "$runs_json" | jq -r '.workflow_runs[0].id')
         run_html_url=$(echo "$runs_json" | jq -r '.workflow_runs[0].html_url')
         run_created_at=$(echo "$runs_json" | jq -r '.workflow_runs[0].created_at')
@@ -60,24 +62,15 @@ jobs:
         echo "Upstream run id: $run_id"
         echo "Upstream run url: $run_html_url"
         echo "Run created at: $run_created_at"
-        # Convert to yyyymmdd date
         run_date=$(date -d "$run_created_at" +%Y%m%d)
         echo "run_date=$run_date" >> $GITHUB_OUTPUT
         echo "run_id=$run_id" >> $GITHUB_OUTPUT
         echo "run_html_url=$run_html_url" >> $GITHUB_OUTPUT
-
-        echo "run_id=${{ steps.upstream_run.outputs.run_id }}"
-        echo "owner=${{ env.upstream_owner }}"
-        echo "repo=${{ env.upstream_repo }}"
-        echo "GITHUB_TOKEN is set: ${GITHUB_TOKEN:+yes}"
-
-        artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/$owner/$repo/actions/runs/$run_id/artifacts")
+        artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/$OWNER/$REPO/actions/runs/$run_id/artifacts")
         echo "List artifacts response:"
         echo "$artifacts_json" | jq .
-
         artifact_ids=$(echo "$artifacts_json" | jq -r '.artifacts[] | select(.name | test("^godot-docs-html-")) | .id')
         echo "Found artifact IDs: $artifact_ids"
-
         if [[ -z "$artifact_ids" ]]; then
           echo "No matching artifacts found"
           exit 1
@@ -86,53 +79,38 @@ jobs:
     - name: Download godot-docs-html-*.zip artifacts from upstream run
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RUN_ID: ${{ steps.upstream_run.outputs.run_id }}
+        OWNER: ${{ env.upstream_owner }}
+        REPO: ${{ env.upstream_repo }}
       run: |
         set -euo pipefail
-        run_id=${{ steps.upstream_run.outputs.run_id }}
-        owner=${{ env.upstream_owner }}
-        repo=${{ env.upstream_repo }}
-
-        echo "Listing artifacts for upstream run $run_id"
-        artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/$owner/$repo/actions/runs/$run_id/artifacts")
-
+        echo "Listing artifacts for upstream run $RUN_ID"
+        artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/$OWNER/$REPO/actions/runs/$RUN_ID/artifacts")
         artifact_ids=$(echo "$artifacts_json" | jq -r '.artifacts[] | select(.name | test("^godot-docs-html-")) | .id')
-
         echo "Found artifact IDs: $artifact_ids"
         if [[ -z "$artifact_ids" ]]; then
           echo "No matching artifacts found"
           exit 1
         fi
-
         mkdir -p artifacts
         cd artifacts
-
-        # Get artifact info JSON
         artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-          "https://api.github.com/repos/$owner/$repo/actions/runs/$run_id/artifacts")
-
-        # Extract name and id pairs for matching artifacts
+          "https://api.github.com/repos/$OWNER/$REPO/actions/runs/$RUN_ID/artifacts")
         mapfile -t artifact_lines < <(echo "$artifacts_json" | jq -c '.artifacts[] | select(.name | test("^godot-docs-html-")) | {id: .id, name: .name}')
-
         for artifact_json in "${artifact_lines[@]}"; do
           artifact_id=$(echo "$artifact_json" | jq -r '.id')
           artifact_name=$(echo "$artifact_json" | jq -r '.name')
-
           echo "Downloading artifact $artifact_name with ID $artifact_id"
           curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
                -o artifact.zip \
-               "https://api.github.com/repos/$owner/$repo/actions/artifacts/$artifact_id/zip"
-
-          # Extract into folder named exactly as artifact_name
+               "https://api.github.com/repos/$OWNER/$REPO/actions/artifacts/$artifact_id/zip"
           mkdir -p "$artifact_name"
           unzip -q artifact.zip -d "$artifact_name"
           rm artifact.zip
-
           echo "Listing contents of $artifact_name:"
           ls -lR "$artifact_name"
         done
-
         cd ..
-
         for folder in artifacts/godot-docs-html-*; do
           base_folder=$(basename "$folder")
           echo "Copying $folder to workspace root as $base_folder"
@@ -180,65 +158,56 @@ jobs:
 
     - name: Delete existing release if tag exists
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RUN_DATE: ${{ steps.upstream_run.outputs.run_date }}
       run: |
-        tag="${{ steps.upstream_run.outputs.run_date }}"
-        repo="${{ github.repository }}"
-        release_id=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-          "https://api.github.com/repos/$repo/releases/tags/$tag" | jq -r '.id // empty')
-        if [ -n "$release_id" ]; then
-          echo "Deleting existing release ID $release_id (tag: $tag)"
-          curl -s -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$repo/releases/$release_id"
-          echo "Deleted successfully."
-        else
-          echo "No existing release found for tag $tag, nothing to delete."
-        fi
+        gh release delete "$RUN_DATE" --yes || true
+        git tag -d "$RUN_DATE" || true
+        git push origin ":refs/tags/$RUN_DATE" || true
 
-    - name: Create or update release and upload .tgz assets with body
+    - name: Create GitHub Release
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          Godot-master-docset.tgz
-          Godot-${{ env.stable_version }}-docset.tgz
-          Godot-3.6-docset.tgz
-        tag_name: ${{ steps.upstream_run.outputs.run_date }}
-        name: ${{ steps.upstream_run.outputs.run_date }}
-        body: |
-          [${{ env.upstream_owner }}/${{ env.upstream_repo }}@${{ steps.upstream_run.outputs.run_id }}](${{ steps.upstream_run.outputs.run_html_url }})
-        draft: false
-        prerelease: false
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RUN_DATE: ${{ steps.upstream_run.outputs.run_date }}
+        RUN_ID: ${{ steps.upstream_run.outputs.run_id }}
+        RUN_URL: ${{ steps.upstream_run.outputs.run_html_url }}
+        OWNER: ${{ env.upstream_owner }}
+        REPO: ${{ env.upstream_repo }}
+      run: |
+        gh release create "$RUN_DATE" \
+          Godot-master-docset.tgz \
+          Godot-${{ env.stable_version }}-docset.tgz \
+          Godot-3.6-docset.tgz \
+          --title "$RUN_DATE" \
+          --notes "[$OWNER/$REPO@$RUN_ID]($RUN_URL)"
 
     - name: Create or update XML files
+      env:
+        RUN_DATE: ${{ steps.upstream_run.outputs.run_date }}
       run: |
-        # Create Godot.xml
         echo "<entry>" > Godot.xml
         echo "  <name>Godot</name>" >> Godot.xml
         echo "  <version>${{ env.stable_version }}</version>" >> Godot.xml
-        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/${{ steps.upstream_run.outputs.run_date }}/Godot-${{ env.stable_version }}-docset.tgz</url>" >> Godot.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot-${{ env.stable_version }}-docset.tgz</url>" >> Godot.xml
         echo "  <other-versions>" >> Godot.xml
         echo "    <version>" >> Godot.xml
         echo "      <name>3.6</name>" >> Godot.xml
         echo "    </version>" >> Godot.xml
         echo "  </other-versions>" >> Godot.xml
         echo "</entry>" >> Godot.xml
-
-        # Create Godot3.xml
         echo "<entry>" > Godot3.xml
         echo "  <name>Godot</name>" >> Godot3.xml
         echo "  <version>3.6</version>" >> Godot3.xml
-        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/${{ steps.upstream_run.outputs.run_date }}/Godot-3.6-docset.tgz</url>" >> Godot3.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot-3.6-docset.tgz</url>" >> Godot3.xml
         echo "</entry>" >> Godot3.xml
 
     - name: Upload XML files
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RUN_DATE: ${{ steps.upstream_run.outputs.run_date }}
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
-
         godot_changed=false
         godot3_changed=false
         if [ -f Godot.xml ]; then
@@ -251,40 +220,10 @@ jobs:
             godot3_changed=true
           fi
         fi
-
         if [ "$godot_changed" != "true" ] && [ "$godot3_changed" != "true" ]; then
           echo "No changes to Godot.xml or Godot3.xml, skipping commit."
           exit 0
         fi
         git add Godot.xml Godot3.xml 2>/dev/null || true
-        git commit -m "Update Godot.xml and Godot3.xml files for release ${{ steps.upstream_run.outputs.run_date }}" || true
+        git commit -m "Update Godot.xml and Godot3.xml files for release $RUN_DATE" || true
         git push
-
-    - name: Add release description with link to upstream run
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        tag=${{ steps.upstream_run.outputs.run_date }}
-        body="[${{ env.upstream_owner }}/${{ env.upstream_repo }}@${{ steps.upstream_run.outputs.run_id }}](${{ steps.upstream_run.outputs.run_html_url }})"
-        echo "Updating release $tag body with upstream run link"
-        repo_owner=scillidan
-        repo_name=share_godot_docset
-
-        release_id=$(curl -s \
-          -H "Authorization: Bearer $GITHUB_TOKEN" \
-          -H "Accept: application/vnd.github+json" \
-          "https://api.github.com/repos/$repo_owner/$repo_name/releases/tags/$tag" \
-          | jq -r '.id')
-
-        if [ "$release_id" = "null" ] || [ -z "$release_id" ]; then
-          echo "Release not found for tag $tag"
-          exit 1
-        fi
-
-        curl -s -X PATCH \
-          -H "Authorization: Bearer $GITHUB_TOKEN" \
-          -H "Accept: application/vnd.github+json" \
-          "https://api.github.com/repos/$repo_owner/$repo_name/releases/$release_id" \
-          -d "{\"body\":\"$body\"}"
-
-        echo "Release description updated"
