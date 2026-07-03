@@ -206,22 +206,12 @@ jobs:
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
-        godot_changed=false
-        godot3_changed=false
-        if [ -f Godot.xml ]; then
-          if ! git diff --quiet Godot.xml 2>/dev/null; then
-            godot_changed=true
-          fi
-        fi
-        if [ -f Godot3.xml ]; then
-          if ! git diff --quiet Godot3.xml 2>/dev/null; then
-            godot3_changed=true
-          fi
-        fi
-        if [ "$godot_changed" != "true" ] && [ "$godot3_changed" != "true" ]; then
+        git fetch origin
+        git checkout ${GITHUB_REF_NAME} || git checkout -b ${GITHUB_REF_NAME}
+        git add Godot.xml Godot3.xml 2>/dev/null || true
+        if git diff --cached --quiet; then
           echo "No changes to Godot.xml or Godot3.xml, skipping commit."
           exit 0
         fi
-        git add Godot.xml Godot3.xml 2>/dev/null || true
-        git commit -m "Update Godot.xml and Godot3.xml files for release $RUN_DATE" || true
-        git push
+        git commit -m "Update Godot.xml and Godot3.xml files for release $RUN_DATE"
+        git push origin HEAD:${GITHUB_REF_NAME}
