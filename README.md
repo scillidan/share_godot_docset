@@ -12,4 +12,5 @@ This repo is for generating docset files from HTML artifacts that build by [offi
 
 ## Other versions
 
+- Godot 4.6 (20260608): `https://raw.githubusercontent.com/scillidan/share_godot_docset/refs/heads/main/versions/Godot4.6.xml`
 - Godot 4.5 (20260126): `https://raw.githubusercontent.com/scillidan/share_godot_docset/refs/heads/main/versions/Godot4.5.xml`
