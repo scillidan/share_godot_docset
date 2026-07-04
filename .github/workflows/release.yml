@@ -145,6 +145,10 @@ jobs:
           ' "$plist_path"
         done
 
+    - name: Generate checksums.txt
+      run: |
+        sha256sum Godot-master-docset.tgz Godot-${{ env.stable_version }}-docset.tgz Godot-3.6-docset.tgz > checksums.txt
+
     - name: Create tgz
       run: |
         for branch in master ${{ env.stable_version }} 3.6; do
@@ -175,6 +179,7 @@ jobs:
           Godot-master-docset.tgz \
           Godot-${{ env.stable_version }}-docset.tgz \
           Godot-3.6-docset.tgz \
+          checksums.txt \
           --title "$RUN_DATE" \
           --notes "[$OWNER/$REPO@$RUN_ID]($RUN_URL)"
 
