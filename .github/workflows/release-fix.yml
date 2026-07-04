@@ -60,6 +60,7 @@ jobs:
       run: |
         name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
         docset_name="Godot_${name_branch}"
+        chmod +x ./scripts/fix-plist.sh
         ./scripts/fix-plist.sh "$docset_name" "${{ env.stable_version }}"
 
     - name: Create tgz
