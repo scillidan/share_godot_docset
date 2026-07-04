@@ -6,11 +6,9 @@ on:
       stable_version:
         description: 'Docset version to build (e.g., 4.6)'
         required: true
-        default: '4.6'
       source_commit:
-        description: 'godot-docs commit SHA to build from'
+        description: 'godot-docs commit SHA to build from (e.g., 50cd88b6de119d8266a5fad967408fd7f1b2fe83)'
         required: true
-        default: '50cd88b6de119d8266a5fad967408fd7f1b2fe83'
 
 env:
   stable_version: ${{ github.event.inputs.stable_version }}
