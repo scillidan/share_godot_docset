@@ -55,25 +55,29 @@ jobs:
         fi
         doc2dash --icon icon.png --icon-2x icon@2x.png \
           --name "$docset_name" -f "$folder"
+        if [ ! -d "${docset_name}.docset/Contents/" ]; then
+          echo "NO DOCSET FOUND"; exit 1
+        fi
 
-    - name: Update info.plist
+    - name: Update info.plist and rename docset
       run: |
         name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
         docset_name="Godot_${name_branch}"
         chmod +x ./scripts/fix-plist.sh
         ./scripts/fix-plist.sh "$docset_name" "${{ env.stable_version }}"
+        docset_dir_dotted="Godot_${{ env.stable_version }}.docset"
+        mv "${docset_name}.docset" "$docset_dir_dotted"
+        echo "Renamed ${docset_name}.docset -> $docset_dir_dotted"
 
     - name: Create tgz
       run: |
-        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
-        docset_name="Godot_${name_branch}"
-        tgz_name="Godot_${name_branch}.tgz"
-        tar --exclude='.DS_Store' -czf "$tgz_name" "${docset_name}.docset"
+        docset_dir_dotted="Godot_${{ env.stable_version }}.docset"
+        tgz_name="Godot_${{ env.stable_version }}.tgz"
+        tar --exclude='.DS_Store' -czf "$tgz_name" "$docset_dir_dotted"
 
     - name: Generate checksums.txt
       run: |
-        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
-        tgz_name="Godot_${name_branch}.tgz"
+        tgz_name="Godot_${{ env.stable_version }}.tgz"
         sha256sum "$tgz_name" > checksums.txt
         cat checksums.txt
 
@@ -92,8 +96,7 @@ jobs:
         FIX_TAG: ${{ env.stable_version }}-fix
         COMMIT: ${{ github.event.inputs.source_commit }}
       run: |
-        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
-        tgz_name="Godot_${name_branch}.tgz"
+        tgz_name="Godot_${{ env.stable_version }}.tgz"
         gh release create "$FIX_TAG" \
           "$tgz_name" \
           checksums.txt \
