@@ -1,0 +1,149 @@
+name: Release Fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      stable_version:
+        description: 'Docset version to build (e.g., 4.6)'
+        required: true
+        default: '4.6'
+      upstream_run_id:
+        description: 'Specific upstream workflow run ID'
+        required: true
+        default: '27110593730'
+
+env:
+  stable_version: ${{ github.event.inputs.stable_version }}
+  upstream_owner: 'godotengine'
+  upstream_repo: 'godot-docs'
+
+jobs:
+  release-fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+    - name: Checkout self repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y unzip tar python3-pip
+        python3 -m pip install --upgrade pip
+        python3 -m pip install doc2dash requests jq
+
+    - name: Get specific upstream run info
+      id: upstream_run
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RUN_ID: ${{ github.event.inputs.upstream_run_id }}
+        OWNER: ${{ env.upstream_owner }}
+        REPO: ${{ env.upstream_repo }}
+      run: |
+        echo "Fetching info for upstream run $RUN_ID..."
+        run_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+          "https://api.github.com/repos/$OWNER/$REPO/actions/runs/$RUN_ID")
+        run_status=$(echo "$run_json" | jq -r '.status')
+        run_conclusion=$(echo "$run_json" | jq -r '.conclusion')
+        run_html_url=$(echo "$run_json" | jq -r '.html_url')
+        run_created_at=$(echo "$run_json" | jq -r '.created_at')
+        if [[ "$run_status" != "completed" ]] || [[ "$run_conclusion" != "success" ]]; then
+          echo "Upstream run is not successful (status: $run_status, conclusion: $run_conclusion)"
+          exit 1
+        fi
+        echo "Upstream run url: $run_html_url"
+        run_date=$(date -d "$run_created_at" +%Y%m%d)
+        echo "run_date=$run_date" >> $GITHUB_OUTPUT
+        echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+        echo "run_html_url=$run_html_url" >> $GITHUB_OUTPUT
+
+    - name: Download godot-docs-html-*.zip artifacts from upstream run
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RUN_ID: ${{ steps.upstream_run.outputs.run_id }}
+        OWNER: ${{ env.upstream_owner }}
+        REPO: ${{ env.upstream_repo }}
+      run: |
+        set -euo pipefail
+        artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+          "https://api.github.com/repos/$OWNER/$REPO/actions/runs/$RUN_ID/artifacts")
+        mapfile -t artifact_lines < <(echo "$artifacts_json" | jq -c \
+          '.artifacts[] | select(.name | test("^godot-docs-html-")) | {id: .id, name: .name}')
+        if [[ ${#artifact_lines[@]} -eq 0 ]]; then
+          echo "No matching artifacts found"
+          exit 1
+        fi
+        mkdir -p artifacts
+        cd artifacts
+        for artifact_json in "${artifact_lines[@]}"; do
+          artifact_id=$(echo "$artifact_json" | jq -r '.id')
+          artifact_name=$(echo "$artifact_json" | jq -r '.name')
+          echo "Downloading $artifact_name (ID: $artifact_id)"
+          curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
+               -o artifact.zip \
+               "https://api.github.com/repos/$OWNER/$REPO/actions/artifacts/$artifact_id/zip"
+          mkdir -p "$artifact_name"
+          unzip -q artifact.zip -d "$artifact_name"
+          rm artifact.zip
+        done
+        cd ..
+        for folder in artifacts/godot-docs-html-*; do
+          cp -r "$folder" "$(basename "$folder")"
+        done
+
+    - name: Rename stable folder
+      run: mv godot-docs-html-stable godot-docs-html-${{ env.stable_version }}
+
+    - name: Run doc2dash
+      run: |
+        folder="godot-docs-html-${{ env.stable_version }}"
+        if [ ! -d "$folder" ]; then
+          echo "Folder $folder not found!"
+          exit 1
+        fi
+        doc2dash --icon icon.png --icon-2x icon@2x.png \
+          --name "godot-${{ env.stable_version }}" -f "$folder"
+
+    - name: Update info.plist
+      run: |
+        plist_path="godot-${{ env.stable_version }}.docset/Contents/Info.plist"
+        perl -0777 -i -pe '
+          s{(<key>CFBundleIdentifier</key>\s*<string>)godot-${{ env.stable_version }}(</string>)}{$1godot$2}g;
+          s{(<key>CFBundleName</key>\s*<string>)godot-${{ env.stable_version }}(</string>)}{$1Godot ${{ env.stable_version }}$2}g;
+        ' "$plist_path"
+
+    - name: Create tgz
+      run: |
+        tar --exclude='.DS_Store' -czf "Godot-${{ env.stable_version }}-docset.tgz" \
+          "godot-${{ env.stable_version }}.docset"
+
+    - name: Generate checksums.txt
+      run: |
+        sha256sum "Godot-${{ env.stable_version }}-docset.tgz" > checksums.txt
+
+    - name: Delete existing fix release if tag exists
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        FIX_TAG: ${{ env.stable_version }}-fix
+      run: |
+        gh release delete "$FIX_TAG" --yes || true
+        git tag -d "$FIX_TAG" || true
+        git push origin ":refs/tags/$FIX_TAG" || true
+
+    - name: Create GitHub Release (Fix)
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        FIX_TAG: ${{ env.stable_version }}-fix
+        RUN_ID: ${{ steps.upstream_run.outputs.run_id }}
+        RUN_URL: ${{ steps.upstream_run.outputs.run_html_url }}
+        OWNER: ${{ env.upstream_owner }}
+        REPO: ${{ env.upstream_repo }}
+      run: |
+        gh release create "$FIX_TAG" \
+          "Godot-${{ env.stable_version }}-docset.tgz" \
+          checksums.txt \
+          --title "Godot ${{ env.stable_version }} Fix ($FIX_TAG)" \
+          --notes "Fixed docset based on [$OWNER/$REPO@$RUN_ID]($RUN_URL)"
