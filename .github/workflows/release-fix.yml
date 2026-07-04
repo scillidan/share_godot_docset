@@ -8,7 +8,7 @@ on:
         required: true
         default: '4.6'
       source_commit:
-        description: 'godot-docs commit SHA to build from (e.g., 50cd88b...)'
+        description: 'godot-docs commit SHA to build from'
         required: true
         default: '50cd88b6de119d8266a5fad967408fd7f1b2fe83'
 
@@ -44,10 +44,6 @@ jobs:
         sphinx-build -b html . ../godot-docs-html-${{ env.stable_version }}
         echo "Build output:"
         ls -lh ../godot-docs-html-${{ env.stable_version }} | head -20
-
-    - name: Copy built docs to workspace
-      run: |
-        cp -r ${{ env.upstream_repo }}/godot-docs-html-${{ env.stable_version }} ./
 
     - name: Run doc2dash
       run: |
