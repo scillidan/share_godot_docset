@@ -33,21 +33,17 @@ jobs:
         sudo apt-get install -y unzip tar python3-pip
         python3 -m pip install --upgrade pip
 
-    - name: Clone godot-docs and checkout source commit
+    - name: Clone and build HTML docs
       run: |
         git clone https://github.com/${{ env.upstream_owner }}/${{ env.upstream_repo }}.git
         cd ${{ env.upstream_repo }}
         git checkout ${{ github.event.inputs.source_commit }}
-        echo "Checked out commit:"
+        echo "Checked out:"
         git log -1 --oneline
-
-    - name: Build HTML docs with Sphinx
-      run: |
-        cd ${{ env.upstream_repo }}
         pip install -r requirements.txt
-        sphinx-build -b html docs godot-docs-html-${{ env.stable_version }}
-        echo "Built HTML docs:"
-        ls -lh godot-docs-html-${{ env.stable_version }} | head -20
+        sphinx-build -b html . ../godot-docs-html-${{ env.stable_version }}
+        echo "Build output:"
+        ls -lh ../godot-docs-html-${{ env.stable_version }} | head -20
 
     - name: Copy built docs to workspace
       run: |
