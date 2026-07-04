@@ -62,11 +62,7 @@ jobs:
       run: |
         name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
         docset_name="Godot_${name_branch}"
-        plist_path="${docset_name}.docset/Contents/Info.plist"
-        perl -0777 -i -pe '
-          s{(<key>CFBundleIdentifier</key>\s*<string>)'"$docset_name"(</string>)}{$1godot$2}g;
-          s{(<key>CFBundleName</key>\s*<string>)'"$docset_name"(</string>)}{$1Godot ${{ env.stable_version }}$2}g;
-        ' "$plist_path"
+        ./scripts/fix-plist.sh "$docset_name" "${{ env.stable_version }}"
 
     - name: Create tgz
       run: |
