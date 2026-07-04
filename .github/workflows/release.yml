@@ -186,11 +186,6 @@ jobs:
         echo "  <name>Godot</name>" >> Godot.xml
         echo "  <version>${{ env.stable_version }}</version>" >> Godot.xml
         echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot-${{ env.stable_version }}-docset.tgz</url>" >> Godot.xml
-        echo "  <other-versions>" >> Godot.xml
-        echo "    <version>" >> Godot.xml
-        echo "      <name>3.6</name>" >> Godot.xml
-        echo "    </version>" >> Godot.xml
-        echo "  </other-versions>" >> Godot.xml
         echo "</entry>" >> Godot.xml
         echo "<entry>" > Godot3.xml
         echo "  <name>Godot</name>" >> Godot3.xml
