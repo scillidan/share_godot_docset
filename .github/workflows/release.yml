@@ -142,7 +142,6 @@ jobs:
           perl -0777 -i -pe '
             s{(<key>CFBundleIdentifier</key>\s*<string>)godot-'$name_branch'(</string>)}{$1godot$2}g;
             s{(<key>CFBundleName</key>\s*<string>)godot-'$name_branch'(</string>)}{$1Godot '"$branch"'$2}g;
-            s{<key>DocSetPlatformFamily</key>\s*<string>.*?</string>}{<key>DocSetPlatformFamily</key><string>godot</string>}g;
           ' "$plist_path"
         done
 
