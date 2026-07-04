@@ -49,29 +49,38 @@ jobs:
       run: |
         pip install doc2dash
         folder="godot-docs-html-${{ env.stable_version }}"
+        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
+        docset_name="Godot_${name_branch}"
         if [ ! -d "$folder" ]; then
           echo "Folder $folder not found!"
           exit 1
         fi
         doc2dash --icon icon.png --icon-2x icon@2x.png \
-          --name "godot-${{ env.stable_version }}" -f "$folder"
+          --name "$docset_name" -f "$folder"
 
     - name: Update info.plist
       run: |
-        plist_path="godot-${{ env.stable_version }}.docset/Contents/Info.plist"
+        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
+        docset_name="Godot_${name_branch}"
+        plist_path="${docset_name}.docset/Contents/Info.plist"
         perl -0777 -i -pe '
-          s{(<key>CFBundleIdentifier</key>\s*<string>)godot-${{ env.stable_version }}(</string>)}{$1godot$2}g;
-          s{(<key>CFBundleName</key>\s*<string>)godot-${{ env.stable_version }}(</string>)}{$1Godot ${{ env.stable_version }}$2}g;
+          s{(<key>CFBundleIdentifier</key>\s*<string>)'"$docset_name"(</string>)}{$1godot$2}g;
+          s{(<key>CFBundleName</key>\s*<string>)'"$docset_name"(</string>)}{$1Godot ${{ env.stable_version }}$2}g;
         ' "$plist_path"
 
     - name: Create tgz
       run: |
-        tar --exclude='.DS_Store' -czf "Godot-${{ env.stable_version }}-docset.tgz" \
-          "godot-${{ env.stable_version }}.docset"
+        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
+        docset_name="Godot_${name_branch}"
+        tgz_name="Godot_${name_branch}.tgz"
+        tar --exclude='.DS_Store' -czf "$tgz_name" "${docset_name}.docset"
 
     - name: Generate checksums.txt
       run: |
-        sha256sum "Godot-${{ env.stable_version }}-docset.tgz" > checksums.txt
+        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
+        tgz_name="Godot_${name_branch}.tgz"
+        sha256sum "$tgz_name" > checksums.txt
+        cat checksums.txt
 
     - name: Delete existing fix release if tag exists
       env:
@@ -88,8 +97,10 @@ jobs:
         FIX_TAG: ${{ env.stable_version }}-fix
         COMMIT: ${{ github.event.inputs.source_commit }}
       run: |
+        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
+        tgz_name="Godot_${name_branch}.tgz"
         gh release create "$FIX_TAG" \
-          "Godot-${{ env.stable_version }}-docset.tgz" \
+          "$tgz_name" \
           checksums.txt \
           --title "Godot ${{ env.stable_version }} Fix ($FIX_TAG)" \
           --notes "Fixed docset built from godotengine/godot-docs@$COMMIT"
