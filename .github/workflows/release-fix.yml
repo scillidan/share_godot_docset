@@ -80,7 +80,6 @@ jobs:
     - name: Generate checksums.txt
       run: |
         sha256sum "Godot-${{ env.stable_version }}-docset.tgz" > checksums.txt
-        cat checksums.txt
 
     - name: Delete existing fix release if tag exists
       env:
