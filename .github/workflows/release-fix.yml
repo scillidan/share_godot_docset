@@ -60,7 +60,7 @@ jobs:
         echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
         echo "run_html_url=$run_html_url" >> $GITHUB_OUTPUT
 
-    - name: Download godot-docs-html-*.zip artifacts from upstream run
+    - name: Download godot-docs-html-stable artifact from upstream run
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         RUN_ID: ${{ steps.upstream_run.outputs.run_id }}
@@ -68,31 +68,26 @@ jobs:
         REPO: ${{ env.upstream_repo }}
       run: |
         set -euo pipefail
-        artifacts_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+        echo "Fetching artifacts list for upstream run $RUN_ID..."
+        artifacts_json=$(curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" \
           "https://api.github.com/repos/$OWNER/$REPO/actions/runs/$RUN_ID/artifacts")
-        mapfile -t artifact_lines < <(echo "$artifacts_json" | jq -c \
-          '.artifacts[] | select(.name | test("^godot-docs-html-")) | {id: .id, name: .name}')
-        if [[ ${#artifact_lines[@]} -eq 0 ]]; then
-          echo "No matching artifacts found"
+        echo "$artifacts_json" | jq .
+        artifact_id=$(echo "$artifacts_json" | jq -r '.artifacts[] | select(.name == "godot-docs-html-stable") | .id')
+        artifact_name=$(echo "$artifacts_json" | jq -r '.artifacts[] | select(.name == "godot-docs-html-stable") | .name')
+        if [[ -z "$artifact_id" ]] || [[ "$artifact_id" == "null" ]]; then
+          echo "Artifact godot-docs-html-stable not found in this run!"
           exit 1
         fi
-        mkdir -p artifacts
-        cd artifacts
-        for artifact_json in "${artifact_lines[@]}"; do
-          artifact_id=$(echo "$artifact_json" | jq -r '.id')
-          artifact_name=$(echo "$artifact_json" | jq -r '.name')
-          echo "Downloading $artifact_name (ID: $artifact_id)"
-          curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
-               -o artifact.zip \
-               "https://api.github.com/repos/$OWNER/$REPO/actions/artifacts/$artifact_id/zip"
-          mkdir -p "$artifact_name"
-          unzip -q artifact.zip -d "$artifact_name"
-          rm artifact.zip
-        done
-        cd ..
-        for folder in artifacts/godot-docs-html-*; do
-          cp -r "$folder" "$(basename "$folder")"
-        done
+        echo "Downloading $artifact_name (ID: $artifact_id)"
+        curl -Lf -H "Authorization: Bearer $GITHUB_TOKEN" \
+             -o artifact.zip \
+             "https://api.github.com/repos/$OWNER/$REPO/actions/artifacts/$artifact_id/zip"
+        mkdir -p artifacts/"$artifact_name"
+        unzip -q artifact.zip -d artifacts/"$artifact_name"
+        rm artifact.zip
+        echo "Contents of artifacts/$artifact_name:"
+        ls -lR artifacts/"$artifact_name"
+        cp -r artifacts/"$artifact_name" "$artifact_name"
 
     - name: Rename stable folder
       run: mv godot-docs-html-stable godot-docs-html-${{ env.stable_version }}
