@@ -127,35 +127,32 @@ jobs:
             echo "Folder $folder not found, skipping"
             continue
           fi
-          doc2dash --icon icon.png --icon-2x icon@2x.png --name "godot-$name_branch" -f "$folder"
+          doc2dash --icon icon.png --icon-2x icon@2x.png --name "Godot_${name_branch}" -f "$folder"
         done
         for branch in ${{ env.stable_version }} 3.6; do
           name_branch=$(echo "$branch" | tr '.' '_')
-          mv godot-$name_branch.docset godot-$branch.docset
+          mv "Godot_${name_branch}.docset" "Godot_${branch}.docset"
         done
 
     - name: Update info.plist
       run: |
         for branch in master ${{ env.stable_version }} 3.6; do
           name_branch=$(echo "$branch" | tr '.' '_')
-          plist_path="godot-$branch.docset/Contents/Info.plist"
-          perl -0777 -i -pe '
-            s{(<key>CFBundleIdentifier</key>\s*<string>)godot-'$name_branch'(</string>)}{$1godot$2}g;
-            s{(<key>CFBundleName</key>\s*<string>)godot-'$name_branch'(</string>)}{$1Godot '"$branch"'$2}g;
-          ' "$plist_path"
+          ./scripts/fix-plist.sh "Godot_${name_branch}" "$branch"
         done
-
-    - name: Generate checksums.txt
-      run: |
-        sha256sum Godot-master-docset.tgz Godot-${{ env.stable_version }}-docset.tgz Godot-3.6-docset.tgz > checksums.txt
 
     - name: Create tgz
       run: |
         for branch in master ${{ env.stable_version }} 3.6; do
-          docset_folder="godot-$branch.docset"
-          tgz_name="Godot-$branch-docset.tgz"
+          name_branch=$(echo "$branch" | tr '.' '_')
+          docset_folder="Godot_${branch}.docset"
+          tgz_name="Godot_${branch}.tgz"
           tar --exclude='.DS_Store' -czf "$tgz_name" "$docset_folder"
         done
+
+    - name: Generate checksums.txt
+      run: |
+        sha256sum Godot_master.tgz Godot_${{ env.stable_version }}.tgz Godot_3_6.tgz > checksums.txt
 
     - name: Delete existing release if tag exists
       env:
@@ -176,9 +173,9 @@ jobs:
         REPO: ${{ env.upstream_repo }}
       run: |
         gh release create "$RUN_DATE" \
-          Godot-master-docset.tgz \
-          Godot-${{ env.stable_version }}-docset.tgz \
-          Godot-3.6-docset.tgz \
+          Godot_master.tgz \
+          Godot_${{ env.stable_version }}.tgz \
+          Godot_3_6.tgz \
           checksums.txt \
           --title "$RUN_DATE" \
           --notes "[$OWNER/$REPO@$RUN_ID]($RUN_URL)"
@@ -190,12 +187,12 @@ jobs:
         echo "<entry>" > Godot.xml
         echo "  <name>Godot</name>" >> Godot.xml
         echo "  <version>${{ env.stable_version }}</version>" >> Godot.xml
-        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot-${{ env.stable_version }}-docset.tgz</url>" >> Godot.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot_${{ env.stable_version }}.tgz</url>" >> Godot.xml
         echo "</entry>" >> Godot.xml
         echo "<entry>" > Godot3.xml
         echo "  <name>Godot</name>" >> Godot3.xml
         echo "  <version>3.6</version>" >> Godot3.xml
-        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot-3.6-docset.tgz</url>" >> Godot3.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot_3_6.tgz</url>" >> Godot3.xml
         echo "</entry>" >> Godot3.xml
 
     - name: Upload XML files
