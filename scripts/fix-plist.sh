@@ -10,6 +10,12 @@ if [ ! -f "$plist_path" ]; then
   exit 1
 fi
 
+plutil -remove DashDocSetDeclaredInStyle "$plist_path" 2>/dev/null || true
+plutil -remove DashDocSetFamily "$plist_path" 2>/dev/null || true
+plutil -remove DocSetPlatformFamily "$plist_path" 2>/dev/null || true
+plutil -remove isDashDocset "$plist_path" 2>/dev/null || true
+plutil -remove isJavaScriptEnabled "$plist_path" 2>/dev/null || true
+
 perl -0777 -i -pe \
   "s{<key>CFBundleIdentifier</key>\s*<string>${docset_name}</string>}{<key>CFBundleIdentifier</key><string>godot</string>}g;" \
   "$plist_path"

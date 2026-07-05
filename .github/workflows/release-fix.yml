@@ -100,5 +100,5 @@ jobs:
         gh release create "$FIX_TAG" \
           "$tgz_name" \
           checksums.txt \
-          --title "Godot ${{ env.stable_version }} Fix ($FIX_TAG)" \
+          --title "Godot ${{ env.stable_version }} (Fix)" \
           --notes "Fixed docset built from godotengine/godot-docs@$COMMIT"
