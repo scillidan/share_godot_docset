@@ -10,13 +10,19 @@ if [ ! -f "$plist_path" ]; then
   exit 1
 fi
 
-perl -0777 -i -pe \
-  "s{<key>CFBundleIdentifier</key>\s*<string>${docset_name}</string>}{<key>CFBundleIdentifier</key><string>godot</string>}g;" \
-  "$plist_path"
+cat > "$plist_path" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>godot</string>
+	<key>CFBundleName</key>
+	<string>Godot ${stable_version}</string>
+	<key>DocSetPlatformFamily</key>
+	<string>godot</string>
+</dict>
+</plist>
+EOF
 
-perl -0777 -i -pe \
-  "s{<key>CFBundleName</key>\s*<string>${docset_name}</string>}{<key>CFBundleName</key><string>Godot ${stable_version}</string>}g;" \
-  "$plist_path"
-
-echo "Updated $plist_path:"
-grep -A1 -B0 "CFBundleIdentifier\|CFBundleName" "$plist_path" | head -6
+echo "Written $plist_path"
