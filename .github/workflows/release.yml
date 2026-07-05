@@ -151,7 +151,7 @@ jobs:
 
     - name: Generate checksums.txt
       run: |
-        sha256sum Godot_master.tgz Godot_${{ env.stable_version }}.tgz Godot_3_6.tgz > checksums.txt
+        sha256sum Godot_master.tgz Godot_${{ env.stable_version }}.tgz Godot_3.6.tgz > checksums.txt
 
     - name: Delete existing release if tag exists
       env:
@@ -174,7 +174,7 @@ jobs:
         gh release create "$RUN_DATE" \
           Godot_master.tgz \
           Godot_${{ env.stable_version }}.tgz \
-          Godot_3_6.tgz \
+          Godot_3.6.tgz \
           checksums.txt \
           --title "$RUN_DATE" \
           --notes "[$OWNER/$REPO@$RUN_ID]($RUN_URL)"
@@ -191,7 +191,7 @@ jobs:
         echo "<entry>" > Godot3.xml
         echo "  <name>Godot</name>" >> Godot3.xml
         echo "  <version>3.6</version>" >> Godot3.xml
-        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot_3_6.tgz</url>" >> Godot3.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot_3.6.tgz</url>" >> Godot3.xml
         echo "</entry>" >> Godot3.xml
 
     - name: Upload XML files
