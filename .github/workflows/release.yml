@@ -129,16 +129,15 @@ jobs:
           fi
           doc2dash --icon icon.png --icon-2x icon@2x.png --name "Godot_${name_branch}" -f "$folder"
         done
-        for branch in ${{ env.stable_version }} 3.6; do
-          name_branch=$(echo "$branch" | tr '.' '_')
-          mv "Godot_${name_branch}.docset" "Godot_${branch}.docset"
-        done
 
-    - name: Update info.plist
+    - name: Update info.plist and rename docset
       run: |
+        chmod +x ./scripts/fix-plist.sh
         for branch in master ${{ env.stable_version }} 3.6; do
           name_branch=$(echo "$branch" | tr '.' '_')
           ./scripts/fix-plist.sh "Godot_${name_branch}" "$branch"
+          mv "Godot_${name_branch}.docset" "Godot_${branch}.docset"
+          echo "Renamed Godot_${name_branch}.docset -> Godot_${branch}.docset"
         done
 
     - name: Create tgz
