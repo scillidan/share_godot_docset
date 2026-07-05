@@ -47,7 +47,7 @@ jobs:
       run: |
         pip install doc2dash
         folder="godot-docs-html-${{ env.stable_version }}"
-        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
+        name_branch=$(echo "${{ env.stable_version }}" | tr '.' '_')
         docset_name="Godot_${name_branch}"
         if [ ! -d "$folder" ]; then
           echo "Folder $folder not found!"
@@ -61,7 +61,7 @@ jobs:
 
     - name: Update info.plist and rename docset
       run: |
-        name_branch=$(echo "${{ env.stable_version }}" | tr '-' '_')
+        name_branch=$(echo "${{ env.stable_version }}" | tr '.' '_')
         docset_name="Godot_${name_branch}"
         chmod +x ./scripts/fix-plist.sh
         ./scripts/fix-plist.sh "$docset_name" "${{ env.stable_version }}"
