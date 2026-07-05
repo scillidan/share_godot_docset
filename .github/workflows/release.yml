@@ -136,8 +136,10 @@ jobs:
         for branch in master ${{ env.stable_version }} 3.6; do
           name_branch=$(echo "$branch" | tr '.' '_')
           ./scripts/fix-plist.sh "Godot_${name_branch}" "$branch"
-          mv "Godot_${name_branch}.docset" "Godot_${branch}.docset"
-          echo "Renamed Godot_${name_branch}.docset -> Godot_${branch}.docset"
+          if [ "$branch" != "master" ]; then
+            mv "Godot_${name_branch}.docset" "Godot_${branch}.docset"
+            echo "Renamed Godot_${name_branch}.docset -> Godot_${branch}.docset"
+          fi
         done
 
     - name: Create tgz
