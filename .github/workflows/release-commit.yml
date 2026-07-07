@@ -1,0 +1,104 @@
+name: Release (build from commit)
+
+on:
+  workflow_dispatch:
+    inputs:
+      stable_version:
+        description: 'Docset version to build (e.g., 4.6)'
+        required: true
+      source_commit:
+        description: 'godotengine/godot-docs commit SHA to build from'
+        required: true
+
+env:
+  stable_version: ${{ github.event.inputs.stable_version }}
+  upstream_owner: 'godotengine'
+  upstream_repo: 'godot-docs'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout self repo
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y unzip tar python3-pip
+        python3 -m pip install --upgrade pip
+
+    - name: Clone and build HTML docs
+      run: |
+        git clone https://github.com/${{ env.upstream_owner }}/${{ env.upstream_repo }}.git
+        cd ${{ env.upstream_repo }}
+        git checkout ${{ github.event.inputs.source_commit }}
+        echo "Checked out:"
+        git log -1 --oneline
+        pip install -r requirements.txt
+        sphinx-build -b html . ../godot-docs-html-${{ env.stable_version }}
+        echo "Build output:"
+        ls -lh ../godot-docs-html-${{ env.stable_version }} | head -20
+
+    - name: Run doc2dash
+      run: |
+        pip install doc2dash
+        folder="godot-docs-html-${{ env.stable_version }}"
+        name_branch=$(echo "${{ env.stable_version }}" | tr '.' '_')
+        docset_name="Godot_${name_branch}"
+        if [ ! -d "$folder" ]; then
+          echo "Folder $folder not found!"
+          exit 1
+        fi
+        doc2dash --icon icon.png --icon-2x icon@2x.png \
+          --name "$docset_name" -f "$folder"
+        if [ ! -d "${docset_name}.docset/Contents/" ]; then
+          echo "NO DOCSET FOUND"; exit 1
+        fi
+
+    - name: Update info.plist and rename docset
+      run: |
+        name_branch=$(echo "${{ env.stable_version }}" | tr '.' '_')
+        docset_name="Godot_${name_branch}"
+        chmod +x ./scripts/fix-plist.sh
+        ./scripts/fix-plist.sh "$docset_name" "${{ env.stable_version }}"
+        docset_dir_dotted="Godot_${{ env.stable_version }}.docset"
+        mv "${docset_name}.docset" "$docset_dir_dotted"
+        echo "Renamed ${docset_name}.docset -> $docset_dir_dotted"
+
+    - name: Create tgz
+      run: |
+        docset_dir_dotted="Godot_${{ env.stable_version }}.docset"
+        tgz_name="Godot_${{ env.stable_version }}.tgz"
+        tar --exclude='.DS_Store' -czf "$tgz_name" "$docset_dir_dotted"
+
+    - name: Generate checksums.txt
+      run: |
+        tgz_name="Godot_${{ env.stable_version }}.tgz"
+        sha256sum "$tgz_name" > checksums.txt
+        cat checksums.txt
+
+    - name: Delete existing fix release if tag exists
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        COMMIT_TAG: ${{ env.stable_version }}
+      run: |
+        gh release delete "$COMMIT_TAG" --yes || true
+        git tag -d "$COMMIT_TAG" || true
+        git push origin ":refs/tags/$COMMIT_TAG" || true
+
+    - name: Create GitHub Release (Build from commit)
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        COMMIT_TAG: ${{ env.stable_version }}
+        COMMIT: ${{ github.event.inputs.source_commit }}
+      run: |
+        tgz_name="Godot_${{ env.stable_version }}.tgz"
+        gh release create "$COMMIT_TAG" \
+          "$tgz_name" \
+          checksums.txt \
+          --title "Godot ${{ env.stable_version }} (build from commit)" \
+          --notes "Fixed docset built from godotengine/godot-docs@$COMMIT"
