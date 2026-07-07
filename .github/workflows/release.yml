@@ -155,51 +155,60 @@ jobs:
       run: |
         sha256sum Godot_master.tgz Godot_${{ env.stable_version }}.tgz Godot_3.6.tgz > checksums.txt
 
-    - name: Delete existing release if tag exists
+    - name: Delete previous release and tag (keep only latest)
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        RUN_DATE: ${{ steps.upstream_run.outputs.run_date }}
+        STABLE_VERSION: ${{ env.stable_version }}
       run: |
-        gh release delete "$RUN_DATE" --yes || true
-        git tag -d "$RUN_DATE" || true
-        git push origin ":refs/tags/$RUN_DATE" || true
+        previous_tag=$(gh release list --limit 100 | grep "^${STABLE_VERSION}-" | head -1 | awk '{print $1}')
+        if [[ -n "$previous_tag" ]]; then
+          echo "Deleting previous release and tag: $previous_tag"
+          gh release delete "$previous_tag" --yes --cleanup-tag || true
+        else
+          echo "No previous release found with prefix ${STABLE_VERSION}-"
+        fi
 
     - name: Create GitHub Release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        STABLE_VERSION: ${{ env.stable_version }}
         RUN_DATE: ${{ steps.upstream_run.outputs.run_date }}
         RUN_ID: ${{ steps.upstream_run.outputs.run_id }}
         RUN_URL: ${{ steps.upstream_run.outputs.run_html_url }}
         OWNER: ${{ env.upstream_owner }}
         REPO: ${{ env.upstream_repo }}
       run: |
-        gh release create "$RUN_DATE" \
+        TAG="${STABLE_VERSION}-${RUN_DATE}"
+        TITLE="${STABLE_VERSION} (${RUN_DATE})"
+        gh release create "$TAG" \
           Godot_master.tgz \
           Godot_${{ env.stable_version }}.tgz \
           Godot_3.6.tgz \
           checksums.txt \
-          --title "$RUN_DATE" \
+          --title "$TITLE" \
           --notes "[$OWNER/$REPO@$RUN_ID]($RUN_URL)"
 
     - name: Create or update XML files
       env:
+        STABLE_VERSION: ${{ env.stable_version }}
         RUN_DATE: ${{ steps.upstream_run.outputs.run_date }}
       run: |
+        TAG="${STABLE_VERSION}-${RUN_DATE}"
         echo "<entry>" > Godot.xml
         echo "  <name>Godot</name>" >> Godot.xml
         echo "  <version>${{ env.stable_version }}</version>" >> Godot.xml
-        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot_${{ env.stable_version }}.tgz</url>" >> Godot.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$TAG/Godot_${{ env.stable_version }}.tgz</url>" >> Godot.xml
         echo "</entry>" >> Godot.xml
         echo "<entry>" > Godot3.xml
         echo "  <name>Godot</name>" >> Godot3.xml
         echo "  <version>3.6</version>" >> Godot3.xml
-        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$RUN_DATE/Godot_3.6.tgz</url>" >> Godot3.xml
+        echo "  <url>https://github.com/scillidan/share_godot_docset/releases/download/$TAG/Godot_3.6.tgz</url>" >> Godot3.xml
         echo "</entry>" >> Godot3.xml
 
     - name: Upload XML files
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        RUN_DATE: ${{ steps.upstream_run.outputs.run_date }}
+        TAG: ${{ env.stable_version }}-${{ steps.upstream_run.outputs.run_date }}
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
@@ -210,5 +219,5 @@ jobs:
           echo "No changes to Godot.xml or Godot3.xml, skipping commit."
           exit 0
         fi
-        git commit -m "Update Godot.xml and Godot3.xml files for release $RUN_DATE"
+        git commit -m "Update Godot.xml and Godot3.xml files for release $TAG"
         git push origin HEAD:${GITHUB_REF_NAME}
