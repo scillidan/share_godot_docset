@@ -81,7 +81,7 @@ jobs:
         sha256sum "$tgz_name" > checksums.txt
         cat checksums.txt
 
-    - name: Delete existing fix release if tag exists
+    - name: Delete existing release if tag exists
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         COMMIT_TAG: ${{ env.stable_version }}
@@ -100,5 +100,5 @@ jobs:
         gh release create "$COMMIT_TAG" \
           "$tgz_name" \
           checksums.txt \
-          --title "Godot ${{ env.stable_version }} (build from commit)" \
-          --notes "Fixed docset built from godotengine/godot-docs@$COMMIT"
+          --title "${{ env.stable_version }} (build from commit)" \
+          --notes "Built docset from godotengine/godot-docs@$COMMIT"
