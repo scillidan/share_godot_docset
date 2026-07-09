@@ -53,7 +53,7 @@ jobs:
           echo "Folder $folder not found!"
           exit 1
         fi
-        doc2dash --icon icon.png --icon-2x icon@2x.png \
+        doc2dash --icon assets/icon.png --icon-2x assets/icon@2x.png \
           --name "$docset_name" -f "$folder"
         if [ ! -d "${docset_name}.docset/Contents/" ]; then
           echo "NO DOCSET FOUND"; exit 1

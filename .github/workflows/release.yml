@@ -127,7 +127,7 @@ jobs:
             echo "Folder $folder not found, skipping"
             continue
           fi
-          doc2dash --icon icon.png --icon-2x icon@2x.png --name "Godot_${name_branch}" -f "$folder"
+          doc2dash --icon assets/icon.png --icon-2x assets/icon@2x.png --name "Godot_${name_branch}" -f "$folder"
         done
 
     - name: Update info.plist and rename docset
